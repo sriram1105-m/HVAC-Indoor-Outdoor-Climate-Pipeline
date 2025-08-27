@@ -1,0 +1,30 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "value": "hvac-datafactory"
+        },
+        "ls_adls_gen2_accountKey": {
+            "value": ""
+        },
+        "ls_adls_gen2_properties_typeProperties_url": {
+            "value": "https://hvacpipelinestorage.dfs.core.windows.net/"
+        },
+        "ls_gold_azure_sql_properties_typeProperties_server": {
+            "value": "sql-iot-gold-new.database.windows.net"
+        },
+        "ls_gold_azure_sql_properties_typeProperties_database": {
+            "value": "db-iot-gold"
+        },
+        "ls_outdoor_api_properties_typeProperties_url": {
+            "value": "https://api.open-meteo.com"
+        },
+        "containerUri": {
+            "value": ""
+        },
+        "containerSasToken": {
+            "value": ""
+        }
+    }
+}

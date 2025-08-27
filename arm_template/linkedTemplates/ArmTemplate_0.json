@@ -1,0 +1,1205 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "factoryName": {
+            "type": "string",
+            "metadata": "Data Factory name",
+            "defaultValue": "hvac-datafactory"
+        },
+        "ls_adls_gen2_accountKey": {
+            "type": "secureString",
+            "metadata": "Secure string for 'accountKey' of 'ls_adls_gen2'"
+        },
+        "ls_adls_gen2_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://hvacpipelinestorage.dfs.core.windows.net/"
+        },
+        "ls_gold_azure_sql_properties_typeProperties_server": {
+            "type": "string",
+            "defaultValue": "sql-iot-gold-new.database.windows.net"
+        },
+        "ls_gold_azure_sql_properties_typeProperties_database": {
+            "type": "string",
+            "defaultValue": "db-iot-gold"
+        },
+        "ls_outdoor_api_properties_typeProperties_url": {
+            "type": "string",
+            "defaultValue": "https://api.open-meteo.com"
+        }
+    },
+    "variables": {
+        "factoryId": "[concat('Microsoft.DataFactory/factories/', parameters('factoryName'))]"
+    },
+    "resources": [
+        {
+            "name": "[concat(parameters('factoryName'), '/ls_adls_gen2')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureBlobFS",
+                "typeProperties": {
+                    "url": "[parameters('ls_adls_gen2_properties_typeProperties_url')]",
+                    "accountKey": {
+                        "type": "SecureString",
+                        "value": "[parameters('ls_adls_gen2_accountKey')]"
+                    }
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ls_gold_azure_sql')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureSqlDatabase",
+                "typeProperties": {
+                    "server": "[parameters('ls_gold_azure_sql_properties_typeProperties_server')]",
+                    "database": "[parameters('ls_gold_azure_sql_properties_typeProperties_database')]",
+                    "encrypt": "mandatory",
+                    "trustServerCertificate": false,
+                    "authenticationType": "SystemAssignedManagedIdentity"
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ls_outdoor_api')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "HttpServer",
+                "typeProperties": {
+                    "url": "[parameters('ls_outdoor_api_properties_typeProperties_url')]",
+                    "enableServerCertificateValidation": true,
+                    "authenticationType": "Anonymous"
+                }
+            },
+            "dependsOn": []
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_raw_iot_json')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls_gen2",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Json",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "raw/iot/2025-08-23T09-25-16Z",
+                        "fileSystem": "hvac-data"
+                    }
+                },
+                "schema": {}
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls_gen2')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_bronze_iot_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls_gen2",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "bronze/iot/2025-08-23T09-25-16Z",
+                        "fileSystem": "hvac-data"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls_gen2')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_silver_iot_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls_gen2",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "silver/iot/2025-08-23T09-25-16Z",
+                        "fileSystem": "hvac-data"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": [
+                    {
+                        "name": "city",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "co2ppm",
+                        "type": "INT_16"
+                    },
+                    {
+                        "name": "deviceId",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "humidityPct",
+                        "type": "DOUBLE"
+                    },
+                    {
+                        "name": "occupancy",
+                        "type": "BOOLEAN"
+                    },
+                    {
+                        "name": "room",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "siteId",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "tempC",
+                        "type": "DOUBLE"
+                    },
+                    {
+                        "name": "ts_utc",
+                        "type": "INT96"
+                    },
+                    {
+                        "name": "occupancy_int",
+                        "type": "INT32"
+                    },
+                    {
+                        "name": "co2ppm_int",
+                        "type": "INT32"
+                    },
+                    {
+                        "name": "humidity_pct_rounded",
+                        "type": "DOUBLE"
+                    },
+                    {
+                        "name": "tempC_rounded",
+                        "type": "DOUBLE"
+                    },
+                    {
+                        "name": "event_time",
+                        "type": "INT96"
+                    },
+                    {
+                        "name": "device_id_clean",
+                        "type": "UTF8"
+                    },
+                    {
+                        "name": "co2ppm_rounded",
+                        "type": "INT_16"
+                    },
+                    {
+                        "name": "comfort_level",
+                        "type": "UTF8"
+                    }
+                ]
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls_gen2')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_gold_indoor_sql')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_gold_azure_sql",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "site_id",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "room",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "event_date",
+                        "type": "date"
+                    },
+                    {
+                        "name": "avg_temp",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "avg_humidity",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "avg_co2ppm",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "max_occupancy",
+                        "type": "int",
+                        "precision": 10
+                    },
+                    {
+                        "name": "num_records",
+                        "type": "int",
+                        "precision": 10
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "gold",
+                    "table": "iot_indoor_aggregated"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_gold_azure_sql')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_raw_outdoor_json')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls_gen2",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Json",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": "*.json",
+                        "folderPath": "raw/outdoor",
+                        "fileSystem": "hvac-data"
+                    }
+                },
+                "schema": {}
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls_gen2')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_bronze_outdoor_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls_gen2",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "bronze/outdoor/v1",
+                        "fileSystem": "hvac-data"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls_gen2')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_outdoor_api_json')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_outdoor_api",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Json",
+                "typeProperties": {
+                    "location": {
+                        "type": "HttpServerLocation",
+                        "relativeUrl": "/v1/forecast?latitude=13.08&longitude=80.27&current_weather=true&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m,cloud_cover&timezone=auto"
+                    }
+                },
+                "schema": {}
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_outdoor_api')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_silver_outdoor_parquet')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_adls_gen2",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "Parquet",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "folderPath": "silver/outdoor/v1",
+                        "fileSystem": "hvac-data"
+                    },
+                    "compressionCodec": "snappy"
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_adls_gen2')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_gold_outdoor_sql')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_gold_azure_sql",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "avg_temp",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "min_temp",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "max_temp",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "avg_windspeed",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "record_count",
+                        "type": "int",
+                        "precision": 10
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "gold",
+                    "table": "iot_outdoor_aggregated"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_gold_azure_sql')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/ds_gold_azure_sql')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ls_gold_azure_sql",
+                    "type": "LinkedServiceReference"
+                },
+                "annotations": [],
+                "type": "AzureSqlTable",
+                "schema": [
+                    {
+                        "name": "site_id",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "room",
+                        "type": "nvarchar"
+                    },
+                    {
+                        "name": "event_date",
+                        "type": "date"
+                    },
+                    {
+                        "name": "avg_temp_indoor",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "avg_humidity_indoor",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "avg_co2ppm_indoor",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "max_occupancy",
+                        "type": "int",
+                        "precision": 10
+                    },
+                    {
+                        "name": "num_records_indoor",
+                        "type": "int",
+                        "precision": 10
+                    },
+                    {
+                        "name": "avg_temp_outdoor",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "min_temp_outdoor",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "max_temp_outdoor",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "avg_windspeed",
+                        "type": "float",
+                        "precision": 15
+                    },
+                    {
+                        "name": "num_records_outdoor",
+                        "type": "int",
+                        "precision": 10
+                    }
+                ],
+                "typeProperties": {
+                    "schema": "gold",
+                    "table": "iot_indoor_outdoor_aggregated"
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/linkedServices/ls_gold_azure_sql')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/pl_raw_to_bronze_outdoor')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "copyOutdoorRawToBronze",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.12:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "JsonSource",
+                                "storeSettings": {
+                                    "type": "HttpReadSettings",
+                                    "requestMethod": "GET"
+                                },
+                                "formatSettings": {
+                                    "type": "JsonReadSettings"
+                                }
+                            },
+                            "sink": {
+                                "type": "ParquetSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "ParquetWriteSettings"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "mappings": [
+                                    {
+                                        "source": {
+                                            "path": "$['current_weather']['time']"
+                                        },
+                                        "sink": {
+                                            "name": "event_time",
+                                            "type": "String"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['current_weather']['temperature']"
+                                        },
+                                        "sink": {
+                                            "name": "temperature_celsius",
+                                            "type": "Double"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['current_weather']['windspeed']"
+                                        },
+                                        "sink": {
+                                            "name": "windspeed_kmh",
+                                            "type": "Double"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['current_weather']['winddirection']"
+                                        },
+                                        "sink": {
+                                            "name": "wind_direction",
+                                            "type": "Double"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['current_weather']['is_day']"
+                                        },
+                                        "sink": {
+                                            "name": "is_day",
+                                            "type": "Int32"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "ds_outdoor_api_json",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ds_bronze_outdoor_parquet",
+                                "type": "DatasetReference",
+                                "parameters": {}
+                            }
+                        ]
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {}
+                },
+                "annotations": [],
+                "lastPublishTime": "2025-08-26T12:20:35Z"
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_outdoor_api_json')]",
+                "[concat(variables('factoryId'), '/datasets/ds_bronze_outdoor_parquet')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/df_raw_to_bronze_iot_clean')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "MappingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_raw_iot_json",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcRawIot"
+                        }
+                    ],
+                    "sinks": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_bronze_iot_parquet",
+                                "type": "DatasetReference"
+                            },
+                            "name": "writeToBronzeIot",
+                            "description": "Writes cleaned IoT raw data to Bronze layer in Parquet format."
+                        }
+                    ],
+                    "transformations": [
+                        {
+                            "name": "deriveCleanFields",
+                            "description": "Creating/updating the columns "
+                        }
+                    ],
+                    "scriptLines": [
+                        "source(output(",
+                        "          city as string,",
+                        "          co2ppm as short,",
+                        "          deviceId as string,",
+                        "          humidityPct as double,",
+                        "          occupancy as boolean,",
+                        "          room as string,",
+                        "          siteId as string,",
+                        "          tempC as double,",
+                        "          ts_utc as timestamp",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     inferDriftedColumnTypes: true,",
+                        "     ignoreNoFilesFound: false,",
+                        "     documentForm: 'documentPerLine') ~> srcRawIot",
+                        "srcRawIot derive(ts_utc = ts_utc,",
+                        "          occupancy_int = iif(occupancy, 1, 0),",
+                        "          co2ppm_int = toInteger(co2ppm),",
+                        "          humidity_pct_rounded = round(humidityPct, 2),",
+                        "          tempC_rounded = round(tempC, 2)) ~> deriveCleanFields",
+                        "deriveCleanFields sink(allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     format: 'parquet',",
+                        "     umask: 0022,",
+                        "     preCommands: [],",
+                        "     postCommands: [],",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true) ~> writeToBronzeIot"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_raw_iot_json')]",
+                "[concat(variables('factoryId'), '/datasets/ds_bronze_iot_parquet')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/df_bronze_to_silver_iot')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "MappingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_bronze_iot_parquet",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcBronzeIot"
+                        }
+                    ],
+                    "sinks": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_silver_iot_parquet",
+                                "type": "DatasetReference"
+                            },
+                            "name": "sinkSilverIot"
+                        }
+                    ],
+                    "transformations": [
+                        {
+                            "name": "filterValidIot"
+                        },
+                        {
+                            "name": "deriveFormattedTs",
+                            "description": "Creating/updating the columns "
+                        },
+                        {
+                            "name": "cleanDeviceID",
+                            "description": "Creating/updating the columns "
+                        },
+                        {
+                            "name": "roundSensorValues",
+                            "description": "Rounding off the sensor values"
+                        },
+                        {
+                            "name": "classifyComfortLevel",
+                            "description": "Comfort Level of the Room"
+                        }
+                    ],
+                    "scriptLines": [
+                        "source(output(",
+                        "          city as string,",
+                        "          co2ppm as short,",
+                        "          deviceId as string,",
+                        "          humidityPct as double,",
+                        "          occupancy as boolean,",
+                        "          room as string,",
+                        "          siteId as string,",
+                        "          tempC as double,",
+                        "          ts_utc as timestamp,",
+                        "          occupancy_int as integer,",
+                        "          co2ppm_int as integer,",
+                        "          humidity_pct_rounded as double,",
+                        "          tempC_rounded as double",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     ignoreNoFilesFound: false,",
+                        "     format: 'parquet') ~> srcBronzeIot",
+                        "srcBronzeIot filter(!isNull(tempC) && !isNull(humidityPct) && !isNull(deviceId)) ~> filterValidIot",
+                        "filterValidIot derive(event_time = toTimestamp(toString(ts_utc))) ~> deriveFormattedTs",
+                        "deriveFormattedTs derive(device_id_clean = lower(trim(deviceId))) ~> cleanDeviceID",
+                        "cleanDeviceID derive(tempC_rounded = round(tempC, 1),",
+                        "          humidity_pct_rounded = round(humidityPct, 1),",
+                        "          co2ppm_rounded = round(co2ppm, 1)) ~> roundSensorValues",
+                        "roundSensorValues derive(comfort_level = iif(tempC >= 21 && tempC <= 25 && humidityPct >= 30 && humidityPct <= 60, 'Comfort', 'Discomfort')) ~> classifyComfortLevel",
+                        "classifyComfortLevel sink(allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     input(",
+                        "          city as string,",
+                        "          co2ppm as short,",
+                        "          deviceId as string,",
+                        "          humidityPct as double,",
+                        "          occupancy as boolean,",
+                        "          room as string,",
+                        "          siteId as string,",
+                        "          tempC as double,",
+                        "          ts_utc as timestamp,",
+                        "          occupancy_int as integer,",
+                        "          co2ppm_int as integer,",
+                        "          humidity_pct_rounded as double,",
+                        "          tempC_rounded as double,",
+                        "          event_time as timestamp,",
+                        "          device_id_clean as string,",
+                        "          co2ppm_rounded as short,",
+                        "          comfort_level as string",
+                        "     ),",
+                        "     format: 'parquet',",
+                        "     umask: 0022,",
+                        "     preCommands: [],",
+                        "     postCommands: [],",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true) ~> sinkSilverIot"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_bronze_iot_parquet')]",
+                "[concat(variables('factoryId'), '/datasets/ds_silver_iot_parquet')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/df_silver_to_gold')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "MappingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_silver_iot_parquet",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcSilverIndoor"
+                        }
+                    ],
+                    "sinks": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_gold_indoor_sql",
+                                "type": "DatasetReference"
+                            },
+                            "name": "sinkGoldIndoorSQL",
+                            "description": "Writes indoor Gold aggregates to Azure SQL"
+                        }
+                    ],
+                    "transformations": [
+                        {
+                            "name": "selectColumns",
+                            "description": "This is to drop unused columns and rename for clarity"
+                        },
+                        {
+                            "name": "deriveDateOnly",
+                            "description": "Deriving the Date"
+                        },
+                        {
+                            "name": "aggDailyRoomStats"
+                        }
+                    ],
+                    "scriptLines": [
+                        "source(output(",
+                        "          city as string,",
+                        "          co2ppm as short,",
+                        "          deviceId as string,",
+                        "          humidityPct as double,",
+                        "          occupancy as boolean,",
+                        "          room as string,",
+                        "          siteId as string,",
+                        "          tempC as double,",
+                        "          ts_utc as timestamp,",
+                        "          occupancy_int as integer,",
+                        "          co2ppm_int as integer,",
+                        "          humidity_pct_rounded as double,",
+                        "          tempC_rounded as double,",
+                        "          event_time as timestamp,",
+                        "          device_id_clean as string,",
+                        "          co2ppm_rounded as short,",
+                        "          comfort_level as string",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     ignoreNoFilesFound: false,",
+                        "     format: 'parquet') ~> srcSilverIndoor",
+                        "srcSilverIndoor select(mapColumn(",
+                        "          event_time,",
+                        "          city,",
+                        "          site_id = siteId,",
+                        "          room,",
+                        "          device_id = device_id_clean,",
+                        "          co2ppm = co2ppm_rounded,",
+                        "          humidity_pct = humidity_pct_rounded,",
+                        "          temperature_celsius = tempC_rounded,",
+                        "          occupancy = occupancy_int,",
+                        "          comfort_level",
+                        "     ),",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true) ~> selectColumns",
+                        "selectColumns derive(event_date = toDate(event_time)) ~> deriveDateOnly",
+                        "deriveDateOnly aggregate(groupBy(site_id,",
+                        "          room,",
+                        "          event_date),",
+                        "     avg_temp = avg(temperature_celsius),",
+                        "          avg_humidity = avg(humidity_pct),",
+                        "          avg_co2ppm = avg(co2ppm),",
+                        "          max_occupancy = max(occupancy),",
+                        "          num_records = count(1)) ~> aggDailyRoomStats",
+                        "aggDailyRoomStats sink(allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     input(",
+                        "          site_id as string,",
+                        "          room as string,",
+                        "          event_date as date,",
+                        "          avg_temp as double,",
+                        "          avg_humidity as double,",
+                        "          avg_co2ppm as double,",
+                        "          max_occupancy as integer,",
+                        "          num_records as integer",
+                        "     ),",
+                        "     deletable:false,",
+                        "     insertable:true,",
+                        "     updateable:false,",
+                        "     upsertable:false,",
+                        "     format: 'table',",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true,",
+                        "     errorHandlingOption: 'stopOnFirstError') ~> sinkGoldIndoorSQL"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_silver_iot_parquet')]",
+                "[concat(variables('factoryId'), '/datasets/ds_gold_indoor_sql')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/df_bronze_to_silver_outdoor')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "MappingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_bronze_outdoor_parquet",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcBronzeOutdoor"
+                        }
+                    ],
+                    "sinks": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_silver_outdoor_parquet",
+                                "type": "DatasetReference"
+                            },
+                            "name": "sinkSilverOutdoor"
+                        }
+                    ],
+                    "transformations": [
+                        {
+                            "name": "derivedCleanOutdoorData",
+                            "description": "Clean and enrich Bronze data for Silver layer"
+                        }
+                    ],
+                    "scriptLines": [
+                        "source(output(",
+                        "          event_time as string,",
+                        "          temperature_celsius as double,",
+                        "          windspeed_kmh as double,",
+                        "          wind_direction as double,",
+                        "          is_day as integer",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     ignoreNoFilesFound: false,",
+                        "     format: 'parquet') ~> srcBronzeOutdoor",
+                        "srcBronzeOutdoor derive(event_time = event_time,",
+                        "          temperature_celsius = toFloat(temperature_celsius),",
+                        "          windspeed_kmh = toFloat(windspeed_kmh),",
+                        "          wind_direction = toString(wind_direction),",
+                        "          is_day = toInteger(is_day)) ~> derivedCleanOutdoorData",
+                        "derivedCleanOutdoorData sink(allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     format: 'parquet',",
+                        "     umask: 0022,",
+                        "     preCommands: [],",
+                        "     postCommands: [],",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true) ~> sinkSilverOutdoor"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_bronze_outdoor_parquet')]",
+                "[concat(variables('factoryId'), '/datasets/ds_silver_outdoor_parquet')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/silver_to_gold_outdoor')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "MappingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_silver_outdoor_parquet",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcSilverOutdoor"
+                        }
+                    ],
+                    "sinks": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_gold_outdoor_sql",
+                                "type": "DatasetReference"
+                            },
+                            "name": "sinkGoldOutdoor"
+                        }
+                    ],
+                    "transformations": [
+                        {
+                            "name": "aggGoldOutdoor"
+                        }
+                    ],
+                    "scriptLines": [
+                        "source(output(",
+                        "          event_time as string,",
+                        "          temperature_celsius as float,",
+                        "          windspeed_kmh as float,",
+                        "          wind_direction as string,",
+                        "          is_day as integer",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     ignoreNoFilesFound: false,",
+                        "     format: 'parquet') ~> srcSilverOutdoor",
+                        "srcSilverOutdoor aggregate(avg_temp = avg(temperature_celsius),",
+                        "          min_temp = min(temperature_celsius),",
+                        "          max_temp = max(temperature_celsius),",
+                        "          avg_windspeed = avg(windspeed_kmh),",
+                        "          record_count = count()) ~> aggGoldOutdoor",
+                        "aggGoldOutdoor sink(allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     input(",
+                        "          avg_temp as double,",
+                        "          min_temp as double,",
+                        "          max_temp as double,",
+                        "          avg_windspeed as double,",
+                        "          record_count as integer",
+                        "     ),",
+                        "     deletable:false,",
+                        "     insertable:true,",
+                        "     updateable:false,",
+                        "     upsertable:false,",
+                        "     format: 'table',",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true,",
+                        "     errorHandlingOption: 'stopOnFirstError') ~> sinkGoldOutdoor"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_silver_outdoor_parquet')]",
+                "[concat(variables('factoryId'), '/datasets/ds_gold_outdoor_sql')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('factoryName'), '/df_join_indoor_outdoor')]",
+            "type": "Microsoft.DataFactory/factories/dataflows",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "type": "MappingDataFlow",
+                "typeProperties": {
+                    "sources": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_gold_indoor_sql",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcIndoorGold"
+                        },
+                        {
+                            "dataset": {
+                                "referenceName": "ds_gold_outdoor_sql",
+                                "type": "DatasetReference"
+                            },
+                            "name": "srcOutdoorGold"
+                        }
+                    ],
+                    "sinks": [
+                        {
+                            "dataset": {
+                                "referenceName": "ds_gold_azure_sql",
+                                "type": "DatasetReference"
+                            },
+                            "name": "sinkIndoorOutdoorGold"
+                        }
+                    ],
+                    "transformations": [
+                        {
+                            "name": "jnIndoorOutdoorGold"
+                        },
+                        {
+                            "name": "selIndoorGoldRenamed"
+                        },
+                        {
+                            "name": "selOutdoorGoldRenamed"
+                        }
+                    ],
+                    "scriptLines": [
+                        "source(output(",
+                        "          site_id as string,",
+                        "          room as string,",
+                        "          event_date as date,",
+                        "          avg_temp as double,",
+                        "          avg_humidity as double,",
+                        "          avg_co2ppm as double,",
+                        "          max_occupancy as integer,",
+                        "          num_records as integer",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     isolationLevel: 'READ_UNCOMMITTED',",
+                        "     format: 'table') ~> srcIndoorGold",
+                        "source(output(",
+                        "          avg_temp as double,",
+                        "          min_temp as double,",
+                        "          max_temp as double,",
+                        "          avg_windspeed as double,",
+                        "          record_count as integer",
+                        "     ),",
+                        "     allowSchemaDrift: true,",
+                        "     validateSchema: false,",
+                        "     isolationLevel: 'READ_UNCOMMITTED',",
+                        "     format: 'table') ~> srcOutdoorGold",
+                        "selIndoorGoldRenamed, selOutdoorGoldRenamed join(true(),",
+                        "     joinType:'cross',",
+                        "     matchType:'exact',",
+                        "     ignoreSpaces: false,",
+                        "     broadcast: 'auto')~> jnIndoorOutdoorGold",
+                        "srcIndoorGold select(mapColumn(",
+                        "          site_id,",
+                        "          room,",
+                        "          event_date,",
+                        "          avg_temp_indoor = avg_temp,",
+                        "          avg_humidity_indoor = avg_humidity,",
+                        "          avg_co2ppm_indoor = avg_co2ppm,",
+                        "          max_occupancy,",
+                        "          num_records_indoor = num_records",
+                        "     ),",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true) ~> selIndoorGoldRenamed",
+                        "srcOutdoorGold select(mapColumn(",
+                        "          avg_temp_outdoor = avg_temp,",
+                        "          min_temp_outdoor = min_temp,",
+                        "          max_temp_outdoor = max_temp,",
+                        "          avg_windspeed,",
+                        "          num_records_outdoor = record_count",
+                        "     ),",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true) ~> selOutdoorGoldRenamed",
+                        "jnIndoorOutdoorGold sink(allowSchemaDrift: false,",
+                        "     validateSchema: false,",
+                        "     input(",
+                        "          site_id as string,",
+                        "          room as string,",
+                        "          event_date as date,",
+                        "          avg_temp_indoor as double,",
+                        "          avg_humidity_indoor as double,",
+                        "          avg_co2ppm_indoor as double,",
+                        "          max_occupancy as integer,",
+                        "          num_records_indoor as integer,",
+                        "          avg_temp_outdoor as double,",
+                        "          min_temp_outdoor as double,",
+                        "          max_temp_outdoor as double,",
+                        "          avg_windspeed as double,",
+                        "          num_records_outdoor as integer",
+                        "     ),",
+                        "     deletable:false,",
+                        "     insertable:true,",
+                        "     updateable:false,",
+                        "     upsertable:false,",
+                        "     format: 'table',",
+                        "     skipDuplicateMapInputs: true,",
+                        "     skipDuplicateMapOutputs: true,",
+                        "     errorHandlingOption: 'stopOnFirstError',",
+                        "     mapColumn(",
+                        "          site_id,",
+                        "          room,",
+                        "          event_date,",
+                        "          avg_temp_indoor,",
+                        "          avg_humidity_indoor,",
+                        "          avg_co2ppm_indoor,",
+                        "          max_occupancy,",
+                        "          num_records_indoor,",
+                        "          avg_temp_outdoor,",
+                        "          min_temp_outdoor,",
+                        "          max_temp_outdoor,",
+                        "          avg_windspeed,",
+                        "          num_records_outdoor",
+                        "     )) ~> sinkIndoorOutdoorGold"
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('factoryId'), '/datasets/ds_gold_indoor_sql')]",
+                "[concat(variables('factoryId'), '/datasets/ds_gold_outdoor_sql')]",
+                "[concat(variables('factoryId'), '/datasets/ds_gold_azure_sql')]"
+            ]
+        }
+    ]
+}
