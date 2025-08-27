@@ -1,4 +1,4 @@
-# HVAC Indoor vs Outdoor Climate Comparison - Real Time Production ETL Pipeline usind Azure Data Factory (ADF)
+# HVAC Indoor vs Outdoor Climate Comparison: Real-Time Production ETL Pipeline using Azure Data Factory (ADF)
 
 This reporsitory showcases a real-world, **production-grade data engineering pipeline** built entirely on **Azure**. While this GitHub contains simplified sample data and scripts, the design, orchestration, and architecture follow the exact principles and practices used in real enterprise production systems.
 
@@ -14,7 +14,7 @@ HVAC systems consume a significant portion of building energy. Without correlati
 
 - Overheat or overcool spaces unnecessarily.
 - Miss anomalies in real-time, leading to discomfort and inefficiency.
-- Failt to act on insights because siloed data is not actionable.
+- Fail to act on insights because siloed data is not actionable.
 
 **Challenge:** Indoor IoT sensors produce raw, noisy JSON, while weather APIs return differently structured data. Operations teams need a single, **trusted pipeline** that unifies these streams, validates them, and delivers both **historical analytics** and **real-time monitoring.**
 
@@ -28,7 +28,7 @@ The solution is a **parallel, modular pipeline** built on **Azure Data Factory (
 - **Gold Layer:** Joins indoor and outdoor by event_time, computes deltas.
 - **Azure SQL:** Stores final dataset for BI/Reporting.
 - **Logic Apps:** Detects anomalies in real-time and sends alerts.
-- **Master Pipeline:** Orchestrates the entire flow in paralle for indoor and outdoor.
+- **Master Pipeline:** Orchestrates the entire flow in parallel for indoor and outdoor.
 
 # Architecture (End-to-End Pipeline)
 
@@ -41,7 +41,7 @@ The solution is a **parallel, modular pipeline** built on **Azure Data Factory (
 
 The architecture begins with a **dual-stream ingestion strategy**. Indoor IoT climate data is ingested via **ADF Copy Activity**, while outdoor conditions are fetched in real time from the **Open-Meteo API** using the **ADF HTTP connector**. Both are written into **immutable**, **timestamped folders in ADLS Gen2**, establishing a **time-partitioned raw zone** that guarantees lineage and reproducibility. This upfront design choice mirrors real-world production, where auditability and immutability are non-negotiable.
 
-**2. Bronze Layer - Semi-structures Conversion:**
+**2. Bronze Layer - Semi-structured Conversion:**
 
 At Bronze, the architecture transitions messy JSON into **schema-stable Parquet**. IoT data flows (df_raw_to_bronze_iot) apply column mapping and type normalization, while weather flows (df_raw_to_bronze_weather) flatten nested arrays and enforce consistent naming. By using **Parquet as the contract format**, the pipeline optimizes for downstream query performance and cost efficiency, reflecting product thinking in format choice — not just moving data, but designing for analytics scalability.
 
@@ -65,7 +65,7 @@ At the top sits the **Master Orchestration Pipeline**. Built in ADF, it runs Ind
 
 - **Unified Data:** Indoor & outdoor climate data joined into one trusted dataset.
 - **Real-time Alerts:** Automated anomaly detection prevents inefficiencies.
-- **Analytics-Ready:** Gold dataset in Azure SQL fuels dahsboards and reports.
+- **Analytics-Ready:** Gold dataset in Azure SQL fuels dashboards and reports.
 - **Scalable Design:** Parallel orchestration supports multiple facilities.
 - **Energy Optimization:** Enables data-driven HVAC tuning -> lower costs + comfort.
 
@@ -82,7 +82,7 @@ HVAC-Indoor-Outdoor-Climate-Pipeline/
 ```
 # Conclusion
 
-This project is more than just pipelines. It demonstrates how data engineering translates dorectly into operational outcomes: reducing HVAC costs, improving comfort, and ensuring real-time monitoring through **Azure-native tooling.**
+This project is more than just pipelines. It demonstrates how data engineering translates directly into operational outcomes: reducing HVAC costs, improving comfort, and ensuring real-time monitoring through **Azure-native tooling.**
 
 It shows from API Ingestion, schema enforcement, and medallion layering to orchestration, anomaly detection, and SQL delivery.
 
