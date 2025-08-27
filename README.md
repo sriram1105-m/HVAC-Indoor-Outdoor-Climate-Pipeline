@@ -32,8 +32,7 @@ The solution is a **parallel, modular pipeline** built on **Azure Data Factory (
 
 # Architecture (End-to-End Pipeline)
 
-
-
+![Master Pipeline] (diagrams/pipelines/master_pipeline.png)
 
 
 # Implementation Details
